@@ -59,10 +59,11 @@ enum PiPStatus {
 }
 
 class PiPStatusInfo {
-  PiPStatusInfo(
-      {required this.status,
-      this.isCreateNewEngine = false,
-      this.isEnabledWhenBackground = false});
+  PiPStatusInfo({
+    required this.status,
+    this.isCreateNewEngine = false,
+    this.isEnabledWhenBackground = false,
+  });
 
   PiPStatusInfo.fromMap(Map<dynamic, dynamic> map)
       : status = PiPStatus.values[map['status'] as int],
@@ -92,21 +93,47 @@ class FlPiP {
         case 'onPiPStatus':
           status.value = PiPStatusInfo.fromMap(call.arguments);
           break;
+        case "onPipPrevious":
+          if (_onTapPreviousHandler != null) {
+            _onTapPreviousHandler!(call.arguments);
+          }
+          break;
+        case "onPipNext":
+          if (_onTapNextHandler != null) {
+            _onTapNextHandler!(call.arguments);
+          }
+          break;
       }
     });
   }
 
+  /// 点击上一个按钮
+  Function(dynamic arguments)? _onTapPreviousHandler;
+
+  /// 点击下一个按钮
+  Function(dynamic arguments)? _onTapNextHandler;
+
   final ValueNotifier<PiPStatusInfo?> status = ValueNotifier(null);
+
 
   /// 开启画中画
   /// enable picture-in-picture
   Future<bool> enable({
     FlPiPAndroidConfig android = const FlPiPAndroidConfig(),
     FlPiPiOSConfig ios = const FlPiPiOSConfig(),
+
+    /// 点击上一个按钮
+    final Function(dynamic arguments)? onTapPrevious,
+
+    /// 点击下一个按钮
+    final Function(dynamic arguments)? onTapNext,
   }) async {
     if (!(_isAndroid || _isIOS)) {
       return false;
     }
+
+    _onTapPreviousHandler = onTapPrevious;
+    _onTapNextHandler = onTapNext;
 
     if (_isAndroid &&
         !(android.aspectRatio.fitsInAndroidRequirements) &&
@@ -160,12 +187,11 @@ enum AppState {
 }
 
 class FlPiPConfig {
-  const FlPiPConfig(
-      {required this.path,
-      this.enabledWhenBackground = false,
-      this.createNewEngine = false,
-      this.packageName,
-      this.rect});
+  const FlPiPConfig({required this.path,
+    this.enabledWhenBackground = false,
+    this.createNewEngine = false,
+    this.packageName,
+    this.rect});
 
   ///  ios 画中画弹出前视频的初始大小和位置,默认 [left:width/2,top:height/2,width:0.1,height:0.1]
   ///  ios The initial size and position of the video before the picture-in-picture pops up,default [left:width/2,top:height/2,width:0.1,height:0.1]
@@ -189,7 +215,8 @@ class FlPiPConfig {
   /// create new engine
   final bool createNewEngine;
 
-  Map<String, dynamic> toMap() => {
+  Map<String, dynamic> toMap() =>
+      {
         'left': rect?.left,
         'top': rect?.top,
         'width': rect?.width,
@@ -204,16 +231,15 @@ class FlPiPConfig {
 /// android 画中画配置
 /// android picture-in-picture configuration
 class FlPiPAndroidConfig extends FlPiPConfig {
-  const FlPiPAndroidConfig(
-      {
-      /// Android 悬浮框右上角的关闭按钮的图片地址
-      /// Android The image address of the Close button in the upper right corner of the floating
-      super.path = 'assets/close.png',
-      super.packageName = 'fl_pip',
-      this.aspectRatio = const Rational.square(),
-      super.enabledWhenBackground = false,
-      super.createNewEngine = false,
-      super.rect});
+  const FlPiPAndroidConfig({
+    /// Android 悬浮框右上角的关闭按钮的图片地址
+    /// Android The image address of the Close button in the upper right corner of the floating
+    super.path = 'assets/close.png',
+    super.packageName = 'fl_pip',
+    this.aspectRatio = const Rational.square(),
+    super.enabledWhenBackground = false,
+    super.createNewEngine = false,
+    super.rect});
 
   /// android 画中画窗口宽高比例
   /// android picture in picture window width-height ratio
@@ -224,25 +250,24 @@ class FlPiPAndroidConfig extends FlPiPConfig {
 
   String toHex(Color color) =>
       '#${color.alpha.toRadixString(16).padLeft(2, '0')}'
-      '${color.red.toRadixString(16).padLeft(2, '0')}'
-      '${color.green.toRadixString(16).padLeft(2, '0')}'
-      '${color.blue.toRadixString(16).padLeft(2, '0')}';
+          '${color.red.toRadixString(16).padLeft(2, '0')}'
+          '${color.green.toRadixString(16).padLeft(2, '0')}'
+          '${color.blue.toRadixString(16).padLeft(2, '0')}';
 }
 
 /// ios 画中画配置
 /// ios picture-in-picture configuration
 class FlPiPiOSConfig extends FlPiPConfig {
-  const FlPiPiOSConfig(
-      {
-      /// 视频路径 用于修修改画中画尺寸
-      /// The video [path] is used to modify the size of the picture in picture
-      super.path = 'assets/landscape.mp4',
-      super.packageName = 'fl_pip',
-      this.enableControls = false,
-      this.enablePlayback = false,
-      super.enabledWhenBackground = false,
-      super.createNewEngine = false,
-      super.rect});
+  const FlPiPiOSConfig({
+    /// 视频路径 用于修修改画中画尺寸
+    /// The video [path] is used to modify the size of the picture in picture
+    super.path = 'assets/landscape.mp4',
+    super.packageName = 'fl_pip',
+    this.enableControls = false,
+    this.enablePlayback = false,
+    super.enabledWhenBackground = false,
+    super.createNewEngine = false,
+    super.rect});
 
   /// 显示播放控制
   /// Display play control
@@ -253,7 +278,8 @@ class FlPiPiOSConfig extends FlPiPConfig {
   final bool enablePlayback;
 
   @override
-  Map<String, dynamic> toMap() => {
+  Map<String, dynamic> toMap() =>
+      {
         ...super.toMap(),
         'enableControls': enableControls,
         'enablePlayback': enablePlayback,
