@@ -1,17 +1,23 @@
 package fl.pip
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.ActivityManager
 import android.app.Application
+import android.app.PendingIntent
 import android.app.PictureInPictureParams
+import android.app.RemoteAction
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.BitmapFactory
 import android.graphics.PixelFormat
 import android.graphics.Rect
+import android.graphics.drawable.Icon
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -24,6 +30,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.ImageView
+import fl.pip.FlPiPActivity.PiPPlugin.Companion.channel
 import io.flutter.FlutterInjector
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.android.FlutterSurfaceView
@@ -39,6 +46,15 @@ import io.flutter.embedding.engine.plugins.util.GeneratedPluginRegister
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
+private var mReceiver: BroadcastReceiver? = null
+private const val ACTION_MEDIA_CONTROL = "media_control"
+private const val EXTRA_CONTROL_TYPE: String = "control_type"
+
+private const val REQUEST_TYPE_PREVIOUS: Int = 3
+private const val CONTROL_TYPE_PREVIOUS: Int = 3
+
+private const val REQUEST_TYPE_NEXT: Int = 4
+private const val CONTROL_TYPE_NEXT: Int = 4
 
 open class FlPiPActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -52,6 +68,39 @@ open class FlPiPActivity : FlutterActivity() {
     ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         PiPPlugin.setPiPStatus(if (isInPictureInPictureMode) 0 else 1)
+
+        if (isInPictureInPictureMode) {
+            // 在画中画模式
+            // Starts receiving events from action items in PiP mode.
+            mReceiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context, intent: Intent) {
+                    if (ACTION_MEDIA_CONTROL != intent.action) {
+                        return
+                    }
+                    // This is where we are called back from Picture-in-Picture action
+                    val controlType = intent.getIntExtra(EXTRA_CONTROL_TYPE, 0)
+                    try {
+                        when (controlType) {
+                            CONTROL_TYPE_PREVIOUS -> {
+                                PiPPlugin.onClickPrevious()
+                            }
+
+                            CONTROL_TYPE_NEXT -> {
+                                PiPPlugin.onClickNext()
+                            }
+                        }
+                    } catch (e: java.lang.Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
+            registerReceiver(mReceiver, IntentFilter(ACTION_MEDIA_CONTROL))
+
+        } else {
+            // We are out of PiP mode. We can stop receiving events from it.
+            unregisterReceiver(mReceiver);
+            mReceiver = null;
+        }
     }
 
 
@@ -68,6 +117,18 @@ open class FlPiPActivity : FlutterActivity() {
                         "enabledWhenBackground" to enabledWhenBackground,
                         "status" to int,
                     )
+                )
+            }
+
+            fun onClickPrevious() {
+                channel.invokeMethod(
+                    "onPipPrevious", "点击 上一个 按钮"
+                )
+            }
+
+            fun onClickNext() {
+                channel.invokeMethod(
+                    "onPipNext", "点击 下一个 按钮"
                 )
             }
         }
@@ -198,6 +259,47 @@ open class FlPiPActivity : FlutterActivity() {
                 return false
             }
             val pipBuilder = PictureInPictureParams.Builder().apply {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val actions = ArrayList<RemoteAction>()
+                    //上一个
+                    val intentLast = PendingIntent.getBroadcast(
+                        context,
+                        REQUEST_TYPE_PREVIOUS,
+                        Intent(ACTION_MEDIA_CONTROL).putExtra(
+                            EXTRA_CONTROL_TYPE,
+                            CONTROL_TYPE_PREVIOUS
+                        ),
+                        PendingIntent.FLAG_IMMUTABLE
+                    )
+                    actions.add(
+                        RemoteAction(
+                            Icon.createWithResource(context, R.drawable.ic_fast_rewind),
+                            "",
+                            "",
+                            intentLast
+                        )
+                    )
+
+                    //下一个
+                    val intentNext = PendingIntent.getBroadcast(
+                        context,
+                        REQUEST_TYPE_NEXT,
+                        Intent(ACTION_MEDIA_CONTROL).putExtra(
+                            EXTRA_CONTROL_TYPE,
+                            CONTROL_TYPE_NEXT
+                        ),
+                        PendingIntent.FLAG_IMMUTABLE
+                    )
+                    actions.add(
+                        RemoteAction(
+                            Icon.createWithResource(context, R.drawable.ic_fast_forward),
+                            "",
+                            "",
+                            intentNext
+                        )
+                    )
+                    setActions(actions)
+                }
                 setAspectRatio(
                     Rational(
                         enableArgs["numerator"] as Int, enableArgs["denominator"] as Int
